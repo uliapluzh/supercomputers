@@ -1,0 +1,101 @@
+Country,City,MinAbsYearlyDelta
+India,Silchar,0.000166667
+Togo,Kpalimé,0.000166667
+Pakistan,Karachi,0.000166667
+India,Shillong,0.000166667
+Indonesia,Jombang,0.000166667
+Philippines,Mandaue,0.000166667
+Philippines,Lapu Lapu,0.000166667
+Indonesia,Kediri,0.000166667
+Indonesia,Pasuruan,0.000166667
+Indonesia,Purworejo,0.000166667
+Indonesia,Probolinggo,0.000166667
+Philippines,Toledo,0.000166667
+Syria,Tartus,0.000166667
+Philippines,Cadiz,0.000166667
+Philippines,Kabankalan,0.000166667
+Congo (Democratic Republic Of The),Gemena,0.000166667
+Philippines,Cebu,0.000166667
+Indonesia,Lawang,0.000166667
+France,Rennes,0.000166667
+France,Nantes,0.000166667
+Philippines,Bacolod,0.000166667
+Indonesia,Malang,0.000166667
+France,Angers,0.000166667
+Indonesia,Waru,0.000166667
+Saudi Arabia,Najran,0.000166667
+Indonesia,Mojokerto,0.000166667
+Indonesia,Surabaya,0.000166667
+Philippines,Talisay,0.000166667
+Lebanon,Beirut,0.000166667
+Lebanon,Bayrut,0.000166667
+Indonesia,Sidoarjo,0.000166667
+Kazakhstan,Taraz,0.000166667
+Russia,Petropavlovsk Kamchatskiy,0.000166667
+Russia,Neftekamsk,0.000166667
+Romania,Galati,0.000166667
+China,Dalian,0.000166667
+Romania,Braila,0.000166667
+China,Longjing,0.000166667
+China,Dunhua,0.000166667
+China,Yanji,0.000166667
+Cameroon,Douala,0.000166667
+Cameroon,Edéa,0.000166667
+Turkey,Adana,0.000166667
+Congo (Democratic Republic Of The),Ilebo,0.000166667
+France,Perpignan,0.000166667
+Congo (Democratic Republic Of The),Likasi,0.000166667
+Turkey,Iskenderun,0.000166667
+Mexico,Chetumal,0.000166667
+Syria,Idlib,0.000166667
+Cameroon,Kousséri,0.000166667
+Turkey,Antakya,0.000166667
+Egypt,Suez,0.000166667
+United Kingdom,Swansea,0.000166667
+United States,Overland Park,0.000166667
+Afghanistan,Kabul,0.000166667
+Afghanistan,Jalalabad,0.000166667
+United States,Independence,0.000166667
+United States,Kansas City,0.000166667
+China,Zhaotong,0.000166667
+India,Bijapur,0.000166667
+Ghana,Tamale,0.000166667
+Philippines,Tacloban,0.000166667
+Tanzania,Moshi,0.000166667
+Mexico,Zacatecas,0.000166667
+Mexico,Fresnillo,0.000166667
+Colombia,Bogotá,0.00025
+Thailand,Rayong,0.00025
+Venezuela,San Cristóbal,0.00025
+Brazil,Araucária,0.00025
+Venezuela,Cumaná,0.00025
+Brazil,Colombo,0.00025
+Brazil,Curitiba,0.00025
+Brazil,São José Dos Pinhais,0.00025
+Venezuela,Barcelona,0.00025
+Brazil,Ponta Grossa,0.00025
+Colombia,Soacha,0.00025
+Colombia,Cúcuta,0.00025
+Colombia,Girardot,0.00025
+Colombia,Ibagué,0.00025
+Turkey,Kütahya,0.00025
+Turkey,Inegol,0.00025
+Turkey,Usak,0.00025
+Turkey,Bursa,0.00025
+Venezuela,Ciudad Guayana,0.00025
+China,Yibin,0.00025
+Mexico,Querétaro,0.00025
+Mexico,Celaya,0.00025
+Mexico,Irapuato,0.00025
+Mexico,San Juan Del Río,0.00025
+Mexico,Morelia,0.00025
+China,Wufeng,0.00025
+Mexico,Salamanca,0.00025
+India,Mandya,0.00025
+Angola,Kuito,0.00025
+India,Erode,0.00025
+Germany,Erlangen,0.00025
+Germany,Würzburg,0.00025
+Germany,Reutlingen,0.00025
+Germany,Fürth,0.00025
+Germany,Heidelberg,0.00025
