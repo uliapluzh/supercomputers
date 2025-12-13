@@ -1,1 +1,5 @@
 *.csv
+mytask
+slurm-*.out
+err_*.txt
+out_*.txt
