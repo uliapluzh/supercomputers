@@ -51,8 +51,8 @@ static DataMap readCSVChunk(const std::string &filename,
         std::string dt, tempStr, tempUncertStr, city, country, lat, lon;
 
         std::getline(ss, dt, ',');
-        std::getline(ss, tempStr, ',');
-        std::getline(ss, tempUncertStr, ',');
+        std::getline(ss, tempStr, ',');          // AverageTemperature
+        std::getline(ss, tempUncertStr, ',');    // AverageTemperatureUncertainty
         std::getline(ss, city, ',');
         std::getline(ss, country, ',');
         std::getline(ss, lat, ',');
@@ -60,6 +60,21 @@ static DataMap readCSVChunk(const std::string &filename,
 
         if (dt.size() < 4 || city.empty() || country.empty())
             continue;
+
+        // --- фильтрация по AverageTemperatureUncertainty ---
+        if (tempUncertStr.empty())
+            continue;
+
+        double uncert;
+        try {
+            uncert = std::stod(tempUncertStr);
+        } catch (...) {
+            continue;
+        }
+
+        if (uncert > 3.0)
+            continue;
+        // -----------------------------------------------
 
         tempStr.erase(
             std::remove_if(tempStr.begin(), tempStr.end(),
@@ -70,12 +85,18 @@ static DataMap readCSVChunk(const std::string &filename,
         if (tempStr.empty()) continue;
 
         double temp;
-        try { temp = std::stod(tempStr); }
-        catch (...) { continue; }
+        try {
+            temp = std::stod(tempStr);
+        } catch (...) {
+            continue;
+        }
 
         int year;
-        try { year = std::stoi(dt.substr(0,4)); }
-        catch (...) { continue; }
+        try {
+            year = std::stoi(dt.substr(0, 4));
+        } catch (...) {
+            continue;
+        }
 
         std::string key = country + "," + city;
         data[key].push_back({year, temp});
@@ -144,7 +165,7 @@ DataMap readCSV(const std::string &filename)
     double t0 = MPI_Wtime();
     DataMap local = readCSVChunk(filename, start, end);
     double t1 = MPI_Wtime();
-    log_event(rank, hostname, size, "read_chunk", t0, t1);
+    log_event(rank, hostname, size, "read+filter", t0, t1);
 
     t0 = MPI_Wtime();
     std::string buf = serialize(local);
