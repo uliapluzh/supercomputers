@@ -1,21 +1,6 @@
-#ifndef COMPUTE_H
-#define COMPUTE_H
-
+#pragma once
 #include "types.h"
-#include <map>
-#include <string>
-#include <vector>
-#include <cmath>
 
-using YearlyAverages = std::map<std::string, std::map<int, double>>;
-
-YearlyAverages computeYearlyAverages(const DataMap &data);
-
-struct MinDelta {
-    std::string key;   // Country,City
-    double delta;
-};
-
+PartialMap computeLocalPartials(const DataVec &data);
+YearlyAverages computeFinalAverages(const PartialMap &local);
 std::vector<MinDelta> computeMinDeltas(const YearlyAverages &yearly);
-
-#endif

@@ -1,15 +1,31 @@
-#ifndef TYPES_H
-#define TYPES_H
+#pragma once
 
 #include <string>
 #include <vector>
 #include <map>
 
-struct Entry {
+struct Record {
+    std::string key;   // "Country|City"
     int year;
     double temp;
 };
 
-using DataMap = std::map<std::string, std::vector<Entry>>;
+struct Stat {
+    double sum = 0.0;
+    int count = 0;
+};
 
-#endif
+using DataVec = std::vector<Record>;
+
+using PartialMap =
+    std::map<std::string,
+        std::map<int, Stat>>;
+
+using YearlyAverages =
+    std::map<std::string,
+        std::map<int, double>>;
+
+struct MinDelta {
+    std::string key;
+    double delta;
+};

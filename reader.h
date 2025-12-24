@@ -1,9 +1,5 @@
-#ifndef READER_H
-#define READER_H
-
-#include "types.h"
+#pragma once
 #include <string>
+#include "types.h"
 
-DataMap readCSV(const std::string &filename);
-
-#endif
+DataVec readCSVChunk(const std::string &filename);
