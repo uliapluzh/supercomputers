@@ -1,6 +1,6 @@
 #include <mpi.h>
 #include <fstream>
-
+#include "reduce.h"
 #include "reader.h"
 #include "redistribute.h"
 #include "compute.h"
@@ -30,13 +30,26 @@ int main(int argc, char **argv)
     DataVec local = readCSVChunk("GlobalLandTemperaturesByCity.csv");
     DataVec owned = redistributeByKey(local);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     double t0 = MPI_Wtime();
     PartialMap partials = computeLocalPartials(owned);
     YearlyAverages yearly = computeFinalAverages(partials);
-    auto deltas = computeMinDeltas(yearly);
+    auto localDeltas = computeMinDeltas(yearly);
+    MPI_Barrier(MPI_COMM_WORLD);
     double t1 = MPI_Wtime();
-
     log_event(rank, hostname, size, "final_compute", t0, t1);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t2 = MPI_Wtime();
+    auto deltas = reduceMinDeltasMPI(localDeltas);
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t3 = MPI_Wtime();
+    log_event(rank, hostname, size, "reduce_min_delta", t2, t3);
+    
+    if (rank == 0) {
+    std::cerr << "[DEBUG] global min_deltas = "
+              << deltas.size() << std::endl;
+    }
 
     if (rank == 0) {
         std::ofstream out("output.txt");
@@ -67,13 +80,10 @@ int main(int argc, char **argv)
         }
     }
 
-    /* синхронизация всех ранков */
+    /* ВСЕ ранки логируют program_total */
     MPI_Barrier(MPI_COMM_WORLD);
-
-    if (rank == 0) {
-        log_event(rank, hostname, size,
-                "program_total", t_prog, MPI_Wtime());
-    }
+    log_event(rank, hostname, size,
+              "program_total", t_prog, MPI_Wtime());
 
     MPI_Finalize();
     return 0;

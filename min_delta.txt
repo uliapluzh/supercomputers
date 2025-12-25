@@ -1,101 +1,101 @@
 Country,City,MinAbsYearlyDelta
 France,Brest,0.000107143
 Venezuela,Calabozo,0.000121212
+China,Tangshan,0.000151515
 China,Xingtai,0.000151515
-Togo,Kpalimé,0.000166667
-Philippines,Cadiz,0.000166667
-Indonesia,Surabaya,0.000166667
-France,Nantes,0.000166667
-Congo (Democratic Republic Of The),Ilebo,0.000166667
-Lebanon,Bayrut,0.000166667
-France,Perpignan,0.000166667
-Indonesia,Waru,0.000166667
-China,Dalian,0.000166667
+China,Luancheng,0.000151515
+Mexico,Chetumal,0.000166667
+Tanzania,Moshi,0.000166667
+United States,Kansas City,0.000166667
+United Kingdom,Swansea,0.000166667
 Congo (Democratic Republic Of The),Likasi,0.000166667
-Cameroon,Douala,0.000166667
+Russia,Neftekamsk,0.000166667
 Indonesia,Kediri,0.000166667
+China,Zhaotong,0.000166667
+France,Rennes,0.000166667
+Afghanistan,Kabul,0.000166667
+India,Shillong,0.000166667
+Afghanistan,Jalalabad,0.000166667
+Cameroon,Douala,0.000166667
+Russia,Petropavlovsk Kamchatskiy,0.000166667
+Kazakhstan,Taraz,0.000166667
+France,Nantes,0.000166667
+Indonesia,Surabaya,0.000166667
+Indonesia,Jombang,0.000166667
+Cameroon,Edéa,0.000166667
+Philippines,Kabankalan,0.000166667
+Indonesia,Probolinggo,0.000166667
+India,Silchar,0.000166667
+United States,Independence,0.000166667
+France,Angers,0.000166667
+India,Bijapur,0.000166667
+Indonesia,Waru,0.000166667
+Lebanon,Bayrut,0.000166667
+China,Dalian,0.000166667
+Indonesia,Mojokerto,0.000166667
+Cameroon,Kousséri,0.000166667
+United States,Overland Park,0.000166667
+Syria,Tartus,0.000166667
+Egypt,Suez,0.000166667
 Mexico,Zacatecas,0.000166667
+Philippines,Bacolod,0.000166667
+Congo (Democratic Republic Of The),Gemena,0.000166667
+France,Perpignan,0.000166667
+Philippines,Lapu Lapu,0.000166667
+Philippines,Mandaue,0.000166667
+Indonesia,Lawang,0.000166667
+Mexico,Fresnillo,0.000166667
+Indonesia,Pasuruan,0.000166667
+Congo (Democratic Republic Of The),Ilebo,0.000166667
+Saudi Arabia,Najran,0.000166667
+Indonesia,Malang,0.000166667
+Pakistan,Karachi,0.000166667
+Philippines,Toledo,0.000166667
+Lebanon,Beirut,0.000166667
+Indonesia,Sidoarjo,0.000166667
+Philippines,Talisay,0.000166667
+Togo,Kpalimé,0.000166667
+Indonesia,Purworejo,0.000166667
+Philippines,Cadiz,0.000166667
+Philippines,Tacloban,0.000166667
+Philippines,Cebu,0.000166667
 France,Toulouse,0.00019697
 Greece,Pátrai,0.000227273
-Egypt,Talkha,0.00025
-Egypt,Dekernes,0.00025
-India,Nagpur,0.00025
+Germany,Würzburg,0.00025
+Japan,Hikone,0.00025
+Japan,Matsusaka,0.00025
+Japan,Komaki,0.00025
+Germany,Ulm,0.00025
+Japan,Nishinomiya,0.00025
+Germany,Stuttgart,0.00025
+Germany,Reutlingen,0.00025
+Turkey,Usak,0.00025
+China,Linfen,0.00025
+Japan,Amagasaki,0.00025
+Germany,Fürth,0.00025
+Japan,Yokkaichi,0.00025
+Japan,Uji,0.00025
+United States,Fremont,0.00025
+Colombia,Ibagué,0.00025
+Japan,Moriguchi,0.00025
 Angola,Kuito,0.00025
-Venezuela,Cumaná,0.00025
-United States,Sacramento,0.00025
-Germany,Erlangen,0.00025
-Germany,Heilbronn,0.00025
-Cameroon,Bertoua,0.00025
-Colombia,Bogotá,0.00025
-Japan,Inazawa,0.00025
-Brazil,Araucária,0.00025
-Japan,Kadoma,0.00025
-Japan,Kuwana,0.00025
-Japan,Nagoya,0.00025
-Colombia,Girardot,0.00025
-Japan,Ikoma,0.00025
-Japan,Nishio,0.00025
-Japan,Takarazuka,0.00025
-Zambia,Lusaka,0.00025
-United States,San Jose,0.00025
-China,Yibin,0.00025
-Brazil,Angra Dos Reis,0.00025
-United States,Sunnyvale,0.00025
-Brazil,Ponta Grossa,0.00025
-India,Rewa,0.00025
+Greece,Thessaloníki,0.00025
 Japan,Okazaki,0.00025
-Pakistan,Mirpur Khas,0.00025
-Philippines,Roxas,0.00025
 United States,Oakland,0.00025
-Peru,Huancayo,0.000318182
-Indonesia,Sukabumi,0.000333333
-Indonesia,Karang Tengah,0.000333333
-Indonesia,Cisaat,0.000333333
-China,Zhoukou,0.000333333
-United States,Simi Valley,0.000333333
-United States,Norwalk,0.000333333
-United States,Amarillo,0.000333333
-Canada,Hamilton,0.000333333
-Brazil,Olinda,0.000333333
-India,Durg,0.000333333
-United Kingdom,Liverpool,0.000333333
-Bolivia,Sucre,0.000333333
-United Kingdom,Saint Helens,0.000333333
-Indonesia,Prabumulih,0.000333333
-Indonesia,Leuwiliang,0.000333333
-Indonesia,Bogor,0.000333333
-Sweden,Malmö,0.000349206
-China,Pingxiang,0.000416667
-Indonesia,Cikupa,0.000416667
-Indonesia,Pamulang,0.000416667
-Turkey,Turgutlu,0.000416667
-United States,Newark,0.000416667
-China,Yulin,0.000416667
-United States,Warren,0.000416667
-China,Liancheng,0.000416667
-United States,Yonkers,0.000416667
-Japan,Kakamigahara,0.000416667
-Turkey,Denizli,0.000416667
-United States,Ann Arbor,0.000416667
-Germany,Lübeck,0.000416667
-Germany,Hamburg,0.000416667
-Germany,Bremerhaven,0.000416667
-Côte D'Ivoire,Korhogo,0.000416667
-India,Hubli,0.000416667
-Japan,Tajimi,0.000416667
-Indonesia,Cisarua,0.000416667
-Indonesia,Jakarta,0.000416667
-Indonesia,Sepatan,0.000416667
-Indonesia,Cibitung,0.000416667
-Indonesia,Citeureup,0.000416667
-Indonesia,Kresek,0.000416667
-Brazil,Alagoinhas,0.0005
-Tunisia,Tunis,0.0005
-Mexico,Cuernavaca,0.0005
-El Salvador,Apopa,0.0005
-Thailand,Chiang Mai,0.0005
-Brazil,Chapecó,0.0005
-El Salvador,Santa Ana,0.0005
-El Salvador,San Salvador,0.0005
-El Salvador,Nueva San Salvador,0.0005
-Spain,Santa Cruz De Tenerife,0.0005
+Brazil,Petrolina,0.00025
+India,Satna,0.00025
+Mexico,Morelia,0.00025
+India,Chhindwara,0.00025
+Egypt,Dekernes,0.00025
+United States,Concord,0.00025
+Egypt,Talkha,0.00025
+Mexico,Querétaro,0.00025
+United States,Vallejo,0.00025
+Turkey,Bursa,0.00025
+United States,San Francisco,0.00025
+Mexico,Salamanca,0.00025
+India,Bangalore,0.00025
+Brazil,Colombo,0.00025
+United States,Berkeley,0.00025
+Japan,Kashihara,0.00025
+Brazil,Curitiba,0.00025

@@ -3,3 +3,6 @@ mytask
 slurm-*.out
 err_*.txt
 out_*.txt
+*.o
+*.so
+*.err
