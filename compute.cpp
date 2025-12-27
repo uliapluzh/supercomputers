@@ -1,196 +1,99 @@
 #include "compute.h"
-#include "logging.h"
 
 #include <mpi.h>
 #include <dlfcn.h>
-
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <unordered_map>
+#include <map>
 #include <algorithm>
 #include <limits>
-#include <iostream>
-#include <cstdlib>   // getenv
-#include <cstring>   // strcmp, strlen
 
 // ================= CUDA plugin interface =================
 
-using CudaFn = std::vector<double>(*)(
-    const std::vector<double>&,
+struct GpuMinDelta {
+    int key_id;
+    double min_delta;
+};
+
+using CudaStatsFn =
+std::vector<GpuMinDelta>(*)(
     const std::vector<int>&,
-    const std::vector<int>&
+    const std::vector<int>&,
+    const std::vector<double>&,
+    int
 );
+
+static CudaStatsFn loadCudaStatsFunction()
+{
+    void* h = dlopen("./libstats_cuda.so", RTLD_LAZY);
+    if (!h)
+        return nullptr;
+
+    return reinterpret_cast<CudaStatsFn>(
+        dlsym(h, "computeStatsCUDA")
+    );
+}
 
 bool canUseCUDA()
 {
-    const char* use_cuda = std::getenv("USE_CUDA");
-    if (!use_cuda || std::strcmp(use_cuda, "1") != 0)
+    const char* use = std::getenv("USE_CUDA");
+    if (!use || std::strcmp(use, "1") != 0)
         return false;
 
     const char* node = std::getenv("SLURMD_NODENAME");
-    if (!node)
-        return false;
-
-    // GPU-ноды
-    if (std::strncmp(node, "gpu", 3) == 0)
-        return true;
-
-    return false;
+    return node && std::strncmp(node, "gpu", 3) == 0;
 }
 
-CudaFn loadCudaFunction()
+// ================= CPU implementation =================
+
+static std::vector<MinDelta>
+computeStatsCPU(const DataVec &data)
 {
-    if (!canUseCUDA())
-        return nullptr;
-
-    void* handle = dlopen("./libmin_delta_cuda.so", RTLD_LAZY | RTLD_LOCAL);
-    if (!handle) {
-        std::cerr << "dlopen failed: " << dlerror() << std::endl;
-        return nullptr;
-    }
-
-    auto fn = reinterpret_cast<CudaFn>(
-        dlsym(handle, "computeMinDeltasCUDA")
-    );
-
-    if (!fn) {
-        std::cerr << "dlsym failed: " << dlerror() << std::endl;
-        return nullptr;
-    }
-
-    return fn;
-}
-
-// ================= Core computations =================
-
-PartialMap computeLocalPartials(const DataVec &data)
-{
-    PartialMap p;
-    for (const auto &r : data) {
-        auto &s = p[r.key][r.year];
-        s.sum   += r.temp;
-        s.count += 1;
-    }
-    return p;
-}
-
-YearlyAverages computeFinalAverages(const PartialMap &p)
-{
-    YearlyAverages y;
-    for (const auto &[key, years] : p)
-        for (const auto &[year, stat] : years)
-            y[key][year] = stat.sum / stat.count;
-    return y;
-}
-
-std::vector<MinDelta>
-computeMinDeltas(const YearlyAverages &yearly)
-{
-    std::vector<double> values;
-    std::vector<int> offsets;
-    std::vector<int> lengths;
-    std::vector<std::string> keys;
-
-    int offset = 0;
-
-    // --- flatten ---
-    for (const auto &[key, ym] : yearly) {
-        if (ym.size() < 2) continue;
-
-        offsets.push_back(offset);
-        lengths.push_back(static_cast<int>(ym.size()));
-        keys.push_back(key);
-
-        for (const auto &[year, temp] : ym) {
-            values.push_back(temp);
-            offset++;
-        }
-    }
-
-    std::vector<double> deltas;
-
-    int rank, size;
+    int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
     char host[MPI_MAX_PROCESSOR_NAME];
-    int len;
-    MPI_Get_processor_name(host, &len);
+    int hostlen;
+    MPI_Get_processor_name(host, &hostlen);
+
+    // key → year → (sum, count)
+    std::unordered_map<std::string,
+        std::map<int, std::pair<double,int>>> acc;
+
+    for (const auto &r : data) {
+        auto &cell = acc[r.key][r.year];
+        cell.first  += r.temp;
+        cell.second += 1;
+    }
 
     std::cerr
         << "[rank " << rank << " | " << host << "] "
-        << "series=" << keys.size()
-        << " values=" << values.size()
+        << "series=" << acc.size()
+        << " values=" << data.size()
+        << " (CPU)"
         << std::endl;
 
-    // --- try CUDA ---
-    if (auto cudaFn = loadCudaFunction()) {
-        std::cerr << "[rank " << rank << "] CUDA ENABLED\n";
-        deltas = cudaFn(values, offsets, lengths);
-    } else {
-        std::cerr << "[rank " << rank << "] CPU fallback\n";
-
-        for (size_t i = 0; i < offsets.size(); ++i) {
-            int start = offsets[i];
-            int len   = lengths[i];
-
-            double best = std::numeric_limits<double>::max();
-            for (int j = 1; j < len; ++j) {
-                double d = std::abs(values[start + j]
-                                  - values[start + j - 1]);
-                best = std::min(best, d);
-            }
-            deltas.push_back(best);
-        }
-    }
-
-    // --- pack result ---
-    std::vector<MinDelta> res;
-    for (size_t i = 0; i < deltas.size(); ++i)
-        res.push_back({ keys[i], deltas[i] });
-
-    std::sort(res.begin(), res.end(),
-              [](const MinDelta &a, const MinDelta &b) {
-                  return a.delta < b.delta;
-              });
-
-    return res;
-}
-
-// ================= CPU-only helpers =================
-
-std::vector<FlatSeries>
-flattenYearlyAverages(const YearlyAverages &yearly)
-{
-    std::vector<FlatSeries> out;
-
-    for (const auto &[key, ym] : yearly) {
-        if (ym.size() < 2) continue;
-
-        FlatSeries fs;
-        fs.key = key;
-
-        for (const auto &[year, val] : ym)
-            fs.values.push_back(val);
-
-        out.push_back(std::move(fs));
-    }
-
-    return out;
-}
-
-std::vector<MinDelta>
-computeMinDeltasCPU(const std::vector<FlatSeries> &series)
-{
     std::vector<MinDelta> res;
 
-    for (const auto &fs : series) {
-        const auto &v = fs.values;
-        if (v.size() < 2) continue;
+    for (const auto &[key, years] : acc) {
+        if (years.size() < 2)
+            continue;
 
         double best = std::numeric_limits<double>::max();
-        for (size_t i = 1; i < v.size(); ++i)
-            best = std::min(best, std::abs(v[i] - v[i - 1]));
 
-        res.push_back({ fs.key, best });
+        auto it = years.begin();
+        double prev = it->second.first / it->second.second;
+        ++it;
+
+        for (; it != years.end(); ++it) {
+            double cur = it->second.first / it->second.second;
+            best = std::min(best, std::abs(cur - prev));
+            prev = cur;
+        }
+
+        res.push_back({ key, best });
     }
 
     std::sort(res.begin(), res.end(),
@@ -199,4 +102,97 @@ computeMinDeltasCPU(const std::vector<FlatSeries> &series)
               });
 
     return res;
+}
+
+// ================= GPU wrapper =================
+
+static std::vector<MinDelta>
+computeStatsCUDA_wrapper(const DataVec &data)
+{
+    std::unordered_map<std::string,int> key2id;
+    std::vector<std::string> id2key;
+
+    std::vector<int>    keys;
+    std::vector<int>    years;
+    std::vector<double> temps;
+
+    for (const auto &r : data) {
+        int id;
+        auto it = key2id.find(r.key);
+        if (it == key2id.end()) {
+            id = key2id.size();
+            key2id[r.key] = id;
+            id2key.push_back(r.key);
+        } else {
+            id = it->second;
+        }
+
+        keys.push_back(id);
+        years.push_back(r.year);
+        temps.push_back(r.temp);
+    }
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    char host[MPI_MAX_PROCESSOR_NAME];
+    int hostlen;
+    MPI_Get_processor_name(host, &hostlen);
+
+    std::cerr
+        << "[rank " << rank << " | " << host << "] "
+        << "series=" << id2key.size()
+        << " values=" << keys.size()
+        << " (GPU)"
+        << std::endl;
+
+    auto fn = loadCudaStatsFunction();
+    if (!fn) {
+        std::cerr
+            << "[rank " << rank
+            << "] CUDA plugin not available, fallback to CPU\n";
+        return computeStatsCPU(data);
+    }
+
+    auto gpuRes = fn(keys, years, temps, id2key.size());
+
+    std::vector<MinDelta> res;
+    res.reserve(gpuRes.size());
+
+    for (const auto &g : gpuRes)
+        res.push_back({ id2key[g.key_id], g.min_delta });
+
+    std::sort(res.begin(), res.end(),
+              [](const MinDelta &a, const MinDelta &b) {
+                  return a.delta < b.delta;
+              });
+
+    return res;
+}
+
+// ================= Unified entry =================
+
+std::vector<MinDelta>
+computeLocalStats(const DataVec &input)
+{
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    // 🔥 КЛЮЧЕВОЕ МЕСТО
+    // Явно сортируем ОДИН РАЗ: (key, year)
+    DataVec data = input;
+    std::sort(data.begin(), data.end(),
+        [](const Record &a, const Record &b) {
+            if (a.key != b.key)
+                return a.key < b.key;
+            return a.year < b.year;
+        });
+
+    if (canUseCUDA()) {
+        std::cerr << "[rank " << rank << "] GPU path\n";
+        return computeStatsCUDA_wrapper(data);
+    }
+
+    std::cerr << "[rank " << rank << "] CPU path\n";
+    return computeStatsCPU(data);
 }

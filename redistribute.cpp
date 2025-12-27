@@ -2,7 +2,8 @@
 #include "logging.h"
 
 #include <mpi.h>
-
+#include <cstdlib>
+#include <cstring>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -22,6 +23,12 @@ static uint64_t stableHash(const std::string &s)
 }
 
 
+static bool isGpuNode()
+{
+    const char* node = std::getenv("SLURMD_NODENAME");
+    return node && std::strncmp(node, "gpu", 3) == 0;
+}
+
 // объявление (используется у тебя в compute.cpp)
 extern bool canUseCUDA();
 
@@ -37,8 +44,9 @@ static int getLocalWeight()
     int cpu_w = cpu ? std::atoi(cpu) : 1;
     int gpu_w = gpu ? std::atoi(gpu) : 3;
 
-    return canUseCUDA() ? gpu_w : cpu_w;
+    return isGpuNode() ? gpu_w : cpu_w;
 }
+
 
 // ============================================================================
 // Взвешенный ownerRank

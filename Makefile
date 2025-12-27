@@ -11,18 +11,19 @@ NVCCFLAGS = -O2 -Xcompiler -fPIC \
 OBJS = main.o reader.o compute.o logging.o redistribute.o reduce.o
 
 TARGET = mytask
-PLUGIN = libmin_delta_cuda.so
+PLUGIN = libstats_cuda.so
 
 all: $(PLUGIN) $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ -ldl
 
-$(PLUGIN): compute_cuda.cu
+$(PLUGIN): stats_cuda.cu
 	$(NVCC) $(NVCCFLAGS) -shared $< -o $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 
 clean:
 	rm -f *.o $(TARGET) $(PLUGIN)

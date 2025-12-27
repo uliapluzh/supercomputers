@@ -23,46 +23,48 @@ int main(int argc, char **argv)
         std::ofstream out("timeline.csv");
         out << "rank,host,size,operation,t_start,t_end,duration\n";
     }
-    MPI_Barrier(MPI_COMM_WORLD);
 
     double t_prog = MPI_Wtime();
 
     DataVec local = readCSVChunk("GlobalLandTemperaturesByCity.csv");
     DataVec owned = redistributeByKey(local);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    // ----------------- MIN DELTA -----------------
     double t0 = MPI_Wtime();
-    PartialMap partials = computeLocalPartials(owned);
-    YearlyAverages yearly = computeFinalAverages(partials);
-    auto localDeltas = computeMinDeltas(yearly);
-    MPI_Barrier(MPI_COMM_WORLD);
+    auto localDeltas = computeLocalStats(owned);
     double t1 = MPI_Wtime();
     log_event(rank, hostname, size, "final_compute", t0, t1);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    // ----------------- REDUCE -----------------
     double t2 = MPI_Wtime();
     auto deltas = reduceMinDeltasMPI(localDeltas);
-    MPI_Barrier(MPI_COMM_WORLD);
     double t3 = MPI_Wtime();
     log_event(rank, hostname, size, "reduce_min_delta", t2, t3);
-    
+
+    // // ----------------- YEARLY (rank 0 only for debug output) -----------------
+    // YearlyAverages yearly;
+    // if (rank == 0) {
+    //     auto partials = computeLocalPartials(owned);
+    //     yearly = computeFinalAverages(partials);
+    // }
+
     if (rank == 0) {
     std::cerr << "[DEBUG] global min_deltas = "
               << deltas.size() << std::endl;
     }
 
     if (rank == 0) {
-        std::ofstream out("output.txt");
-        out << "Country,City,Year,AverageTemperature\n";
+        // std::ofstream out("output.txt");
+        // out << "Country,City,Year,AverageTemperature\n";
 
-        for (const auto &cp : yearly) {
-            auto sep = cp.first.find('|');
-            for (const auto &yp : cp.second)
-                out << cp.first.substr(0, sep) << ","
-                    << cp.first.substr(sep + 1) << ","
-                    << yp.first << ","
-                    << yp.second << "\n";
-        }
+        // for (const auto &cp : yearly) {
+        //     auto sep = cp.first.find('|');
+        //     for (const auto &yp : cp.second)
+        //         out << cp.first.substr(0, sep) << ","
+        //             << cp.first.substr(sep + 1) << ","
+        //             << yp.first << ","
+        //             << yp.second << "\n";
+        // }
 
         std::ofstream out2("min_delta.txt");
         out2 << "Country,City,MinAbsYearlyDelta\n";
@@ -81,7 +83,6 @@ int main(int argc, char **argv)
     }
 
     /* ВСЕ ранки логируют program_total */
-    MPI_Barrier(MPI_COMM_WORLD);
     log_event(rank, hostname, size,
               "program_total", t_prog, MPI_Wtime());
 
