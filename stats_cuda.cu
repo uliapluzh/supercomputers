@@ -1,152 +1,142 @@
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/reduce.h>
-#include <thrust/transform.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/zip_iterator.h>
-#include <thrust/functional.h>
-#include <cmath>
+#include <cuda_runtime.h>
 #include <vector>
+#include <cmath>
+#include <cstdio>
 
 struct GpuMinDelta {
-    int key_id;
+    int    key_id;
     double min_delta;
 };
 
-// -------- helpers --------
+// ================== CUDA kernel ==================
 
-struct SumCount {
-    double sum;
-    int count;
-};
+__global__
+void compute_min_delta_kernel(
+    const int*    keys,
+    const int*    years,
+    const double* temps,
+    const int*    key_offsets,   // начало каждого key
+    const int*    key_sizes,     // длина каждого key
+    int           num_keys,
+    double*       out_min_delta
+)
+{
+    int k = blockIdx.x;
+    if (k >= num_keys) return;
 
-struct SumCountPlus {
-    __host__ __device__
-    SumCount operator()(const SumCount &a,
-                        const SumCount &b) const {
-        return { a.sum + b.sum, a.count + b.count };
+    int start = key_offsets[k];
+    int len   = key_sizes[k];
+
+    double prev_avg = 0.0;
+    double min_d    = 1e300;
+
+    int i = 0;
+    while (i < len) {
+        int year = years[start + i];
+        double sum = 0.0;
+        int cnt = 0;
+
+        // агрегируем один год
+        while (i < len && years[start + i] == year) {
+            sum += temps[start + i];
+            cnt++;
+            i++;
+        }
+
+        double avg = sum / cnt;
+
+        if (cnt > 0 && prev_avg != 0.0) {
+            double d = fabs(avg - prev_avg);
+            if (d < min_d) min_d = d;
+        }
+
+        prev_avg = avg;
     }
-};
 
-struct MakeSumCount {
-    __host__ __device__
-    SumCount operator()(double t) const {
-        return { t, 1 };
-    }
-};
+    out_min_delta[k] = min_d;
+}
 
-struct ComputeAvg {
-    __host__ __device__
-    double operator()(const SumCount &sc) const {
-        return sc.sum / sc.count;
-    }
-};
-
-// ===== ВАЖНОЕ ИСПРАВЛЕНИЕ =====
-
-struct DeltaFunctor {
-    const double* avg;
-    const int*    keys;
-
-    __host__ __device__
-    double operator()(int i) const {
-        if (i == 0) return 1e300;
-        if (keys[i] != keys[i - 1]) return 1e300;
-        return fabs(avg[i] - avg[i - 1]);
-    }
-};
-
-// -------- main CUDA function --------
-// ВАЖНО: вход уже отсортирован по (key, year) на CPU
+// ================== HOST interface ==================
 
 extern "C"
 std::vector<GpuMinDelta>
-computeStatsCUDA(const std::vector<int> &keys,
-                 const std::vector<int> &years,
-                 const std::vector<double> &temps,
-                 int num_keys)
+computeStatsCUDA(
+    const std::vector<int>    &keys,
+    const std::vector<int>    &years,
+    const std::vector<double> &temps,
+    int num_keys
+)
 {
     int n = keys.size();
 
-    thrust::device_vector<int>    d_keys(keys.begin(), keys.end());
-    thrust::device_vector<int>    d_years(years.begin(), years.end());
-    thrust::device_vector<double> d_temps(temps.begin(), temps.end());
+    // ---------- вычисляем offsets на CPU ----------
+    std::vector<int> key_offsets(num_keys);
+    std::vector<int> key_sizes(num_keys);
 
-    auto zip_key_year =
-        thrust::make_zip_iterator(
-            thrust::make_tuple(d_keys.begin(), d_years.begin())
-        );
+    int cur_key = -1;
+    for (int i = 0; i < n; ++i) {
+        if (i == 0 || keys[i] != keys[i - 1]) {
+            cur_key++;
+            key_offsets[cur_key] = i;
+            key_sizes[cur_key] = 1;
+        } else {
+            key_sizes[cur_key]++;
+        }
+    }
 
-    thrust::device_vector<SumCount> d_sc(n);
-    thrust::transform(
-        d_temps.begin(), d_temps.end(),
-        d_sc.begin(),
-        MakeSumCount{}
+    // ---------- device memory ----------
+    int    *d_keys, *d_years, *d_key_offsets, *d_key_sizes;
+    double *d_temps, *d_out;
+
+    cudaMalloc(&d_keys,        n * sizeof(int));
+    cudaMalloc(&d_years,       n * sizeof(int));
+    cudaMalloc(&d_temps,       n * sizeof(double));
+    cudaMalloc(&d_key_offsets,num_keys * sizeof(int));
+    cudaMalloc(&d_key_sizes,  num_keys * sizeof(int));
+    cudaMalloc(&d_out,        num_keys * sizeof(double));
+
+    cudaMemcpy(d_keys, keys.data(), n * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_years, years.data(), n * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_temps, temps.data(), n * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_key_offsets, key_offsets.data(),
+               num_keys * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_key_sizes, key_sizes.data(),
+               num_keys * sizeof(int), cudaMemcpyHostToDevice);
+
+    // ---------- kernel ----------
+    compute_min_delta_kernel<<<num_keys, 1>>>(
+        d_keys,
+        d_years,
+        d_temps,
+        d_key_offsets,
+        d_key_sizes,
+        num_keys,
+        d_out
     );
 
-    thrust::device_vector<int>      d_keys2(n);
-    thrust::device_vector<int>      d_years2(n);
-    thrust::device_vector<SumCount> d_sc2(n);
+    cudaDeviceSynchronize();
 
-    auto new_end = thrust::reduce_by_key(
-        zip_key_year,
-        zip_key_year + n,
-        d_sc.begin(),
-        thrust::make_zip_iterator(
-            thrust::make_tuple(d_keys2.begin(), d_years2.begin())
-        ),
-        d_sc2.begin(),
-        thrust::equal_to<thrust::tuple<int,int>>{},
-        SumCountPlus{}
-    );
+    // ---------- copy back ----------
+    std::vector<double> h_out(num_keys);
+    cudaMemcpy(h_out.data(), d_out,
+               num_keys * sizeof(double),
+               cudaMemcpyDeviceToHost);
 
-    int m = new_end.second - d_sc2.begin();
+    // ---------- cleanup ----------
+    cudaFree(d_keys);
+    cudaFree(d_years);
+    cudaFree(d_temps);
+    cudaFree(d_key_offsets);
+    cudaFree(d_key_sizes);
+    cudaFree(d_out);
 
-    thrust::device_vector<double> d_avg(m);
-    thrust::transform(
-        d_sc2.begin(), d_sc2.begin() + m,
-        d_avg.begin(),
-        ComputeAvg{}
-    );
+    // ---------- pack result ----------
+    std::vector<GpuMinDelta> result;
+    result.reserve(num_keys);
 
-    // ===== БЕЗ UB, БЕЗ device-lambda =====
+    for (int i = 0; i < num_keys; ++i) {
+        result.push_back({ i, h_out[i] });
+    }
 
-    thrust::device_vector<double> d_delta(m);
-
-    DeltaFunctor fn {
-        d_avg.data().get(),
-        d_keys2.data().get()
-    };
-
-    thrust::transform(
-        thrust::make_counting_iterator<int>(0),
-        thrust::make_counting_iterator<int>(m),
-        d_delta.begin(),
-        fn
-    );
-
-    thrust::device_vector<int>    d_out_keys(num_keys);
-    thrust::device_vector<double> d_out_vals(num_keys);
-
-    auto out_end = thrust::reduce_by_key(
-        d_keys2.begin(),
-        d_keys2.begin() + m,
-        d_delta.begin(),
-        d_out_keys.begin(),
-        d_out_vals.begin(),
-        thrust::equal_to<int>{},
-        thrust::minimum<double>{}
-    );
-
-    int r = out_end.second - d_out_vals.begin();
-
-    thrust::host_vector<int>    h_keys(d_out_keys.begin(), d_out_keys.begin() + r);
-    thrust::host_vector<double> h_vals(d_out_vals.begin(), d_out_vals.begin() + r);
-
-    std::vector<GpuMinDelta> out;
-    out.reserve(r);
-    for (int i = 0; i < r; ++i)
-        out.push_back({ h_keys[i], h_vals[i] });
-
-    return out;
+    return result;
 }
