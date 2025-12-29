@@ -19,9 +19,9 @@ struct GpuMinDelta {
 
 using CudaStatsFn =
 std::vector<GpuMinDelta>(*)(
-    const std::vector<int>&,
-    const std::vector<int>&,
     const std::vector<double>&,
+    const std::vector<int>&,
+    const std::vector<int>&,
     int
 );
 
@@ -96,11 +96,6 @@ computeStatsCPU(const DataVec &data)
         res.push_back({ key, best });
     }
 
-    std::sort(res.begin(), res.end(),
-              [](const MinDelta &a, const MinDelta &b) {
-                  return a.delta < b.delta;
-              });
-
     return res;
 }
 
@@ -112,24 +107,57 @@ computeStatsCUDA_wrapper(const DataVec &data)
     std::unordered_map<std::string,int> key2id;
     std::vector<std::string> id2key;
 
-    std::vector<int>    keys;
-    std::vector<int>    years;
-    std::vector<double> temps;
+    // данные, которые реально пойдут на GPU
+    std::vector<double> avg;          // средние по годам
+    std::vector<int>    key_offsets;  // начало каждого key в avg
+    std::vector<int>    key_sizes;    // количество avg у key
+
+    int last_key_id = -1;
+    int last_year   = std::numeric_limits<int>::min();
+
+    double sum = 0.0;
+    int    cnt = 0;
 
     for (const auto &r : data) {
-        int id;
+        int key_id;
         auto it = key2id.find(r.key);
         if (it == key2id.end()) {
-            id = key2id.size();
-            key2id[r.key] = id;
+            key_id = key2id.size();
+            key2id[r.key] = key_id;
             id2key.push_back(r.key);
         } else {
-            id = it->second;
+            key_id = it->second;
         }
 
-        keys.push_back(id);
-        years.push_back(r.year);
-        temps.push_back(r.temp);
+        // новый key или новый год
+        if (key_id != last_key_id || r.year != last_year) {
+            // закрываем предыдущий год
+            if (cnt > 0) {
+                avg.push_back(sum / cnt);
+                key_sizes.back()++;
+            }
+
+            // если это новый key — начинаем новый сегмент
+            if (key_id != last_key_id) {
+                key_offsets.push_back(avg.size());
+                key_sizes.push_back(0);
+            }
+
+            sum = r.temp;
+            cnt = 1;
+            last_key_id = key_id;
+            last_year   = r.year;
+        } else {
+            // тот же год
+            sum += r.temp;
+            cnt++;
+        }
+    }
+
+    // закрываем последний год
+    if (cnt > 0) {
+        avg.push_back(sum / cnt);
+        key_sizes.back()++;
     }
 
     int rank;
@@ -142,8 +170,8 @@ computeStatsCUDA_wrapper(const DataVec &data)
     std::cerr
         << "[rank " << rank << " | " << host << "] "
         << "series=" << id2key.size()
-        << " values=" << keys.size()
-        << " (GPU)"
+        << " avg_values=" << avg.size()
+        << " (GPU aggregated)"
         << std::endl;
 
     auto fn = loadCudaStatsFunction();
@@ -154,21 +182,18 @@ computeStatsCUDA_wrapper(const DataVec &data)
         return computeStatsCPU(data);
     }
 
-    auto gpuRes = fn(keys, years, temps, id2key.size());
+    // теперь CUDA-функция принимает (avg, key_offsets, key_sizes)
+    auto gpuRes = fn(avg, key_offsets, key_sizes, id2key.size());
 
     std::vector<MinDelta> res;
     res.reserve(gpuRes.size());
 
     for (const auto &g : gpuRes)
-        res.push_back({ id2key[g.key_id], g.min_delta });
-
-    std::sort(res.begin(), res.end(),
-              [](const MinDelta &a, const MinDelta &b) {
-                  return a.delta < b.delta;
-              });
+    res.push_back(MinDelta{id2key[g.key_id], g.min_delta});
 
     return res;
 }
+
 
 // ================= Unified entry =================
 
@@ -178,7 +203,6 @@ computeLocalStats(const DataVec &input)
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    // 🔥 КЛЮЧЕВОЕ МЕСТО
     // Явно сортируем ОДИН РАЗ: (key, year)
     DataVec data = input;
     std::sort(data.begin(), data.end(),

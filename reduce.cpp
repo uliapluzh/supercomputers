@@ -17,9 +17,6 @@ reduceMinDeltasMPI(const std::vector<MinDelta> &local)
     MPI_Get_processor_name(host, &hostlen);
     std::string hostname(host);
 
-     //MPI_Barrier(MPI_COMM_WORLD);
-    //  double t0 = MPI_Wtime();
-
     /* --- serialize local --- */
     std::ostringstream oss;
     for (const auto &md : local)
@@ -77,13 +74,11 @@ reduceMinDeltasMPI(const std::vector<MinDelta> &local)
 
         std::sort(global.begin(), global.end(),
                   [](auto &a, auto &b) {
-                      return a.delta < b.delta;
+                    if (a.delta != b.delta)
+                        return a.delta < b.delta;
+                    return a.key < b.key;
                   });
     }
-
-    //  MPI_Barrier(MPI_COMM_WORLD);
-    //  double t1 = MPI_Wtime();
-    //  log_event(rank, hostname, size, "reduce_min_delta", t0, t1);
 
     return global;  
 }

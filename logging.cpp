@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <iomanip>
 
 void log_event(int rank,
                const std::string &host,
@@ -12,6 +13,8 @@ void log_event(int rank,
                double t_end)
 {
     std::ostringstream oss;
+    oss << std::fixed << std::setprecision(6);
+    
     oss << rank << ","
         << host << ","
         << size << ","

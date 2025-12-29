@@ -4,6 +4,7 @@
 #include "reader.h"
 #include "redistribute.h"
 #include "compute.h"
+#include <algorithm>   
 #include "logging.h"
 
 int main(int argc, char **argv)
@@ -41,12 +42,6 @@ int main(int argc, char **argv)
     double t3 = MPI_Wtime();
     log_event(rank, hostname, size, "reduce_min_delta", t2, t3);
 
-    // // ----------------- YEARLY (rank 0 only for debug output) -----------------
-    // YearlyAverages yearly;
-    // if (rank == 0) {
-    //     auto partials = computeLocalPartials(owned);
-    //     yearly = computeFinalAverages(partials);
-    // }
 
     if (rank == 0) {
     std::cerr << "[DEBUG] global min_deltas = "
@@ -54,18 +49,6 @@ int main(int argc, char **argv)
     }
 
     if (rank == 0) {
-        // std::ofstream out("output.txt");
-        // out << "Country,City,Year,AverageTemperature\n";
-
-        // for (const auto &cp : yearly) {
-        //     auto sep = cp.first.find('|');
-        //     for (const auto &yp : cp.second)
-        //         out << cp.first.substr(0, sep) << ","
-        //             << cp.first.substr(sep + 1) << ","
-        //             << yp.first << ","
-        //             << yp.second << "\n";
-        // }
-
         std::ofstream out2("min_delta.txt");
         out2 << "Country,City,MinAbsYearlyDelta\n";
 

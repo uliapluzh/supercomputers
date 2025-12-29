@@ -1,24 +1,26 @@
 #include <cuda_runtime.h>
 #include <vector>
 #include <cmath>
-#include <cstdio>
+#include <limits>
+
+// ================= STRUCT =================
 
 struct GpuMinDelta {
     int    key_id;
     double min_delta;
 };
 
-// ================== CUDA kernel ==================
+constexpr int BLOCK_SIZE = 128;
+
+// ================= CUDA KERNEL =================
 
 __global__
-void compute_min_delta_kernel(
-    const int*    keys,
-    const int*    years,
-    const double* temps,
-    const int*    key_offsets,   // начало каждого key
-    const int*    key_sizes,     // длина каждого key
+void min_delta_from_avg_kernel(
+    const double* avg,
+    const int*    key_offsets,
+    const int*    key_sizes,
     int           num_keys,
-    double*       out_min_delta
+    double*       out
 )
 {
     int k = blockIdx.x;
@@ -27,116 +29,119 @@ void compute_min_delta_kernel(
     int start = key_offsets[k];
     int len   = key_sizes[k];
 
-    double prev_avg = 0.0;
-    double min_d    = 1e300;
-
-    int i = 0;
-    while (i < len) {
-        int year = years[start + i];
-        double sum = 0.0;
-        int cnt = 0;
-
-        // агрегируем один год
-        while (i < len && years[start + i] == year) {
-            sum += temps[start + i];
-            cnt++;
-            i++;
-        }
-
-        double avg = sum / cnt;
-
-        if (cnt > 0 && prev_avg != 0.0) {
-            double d = fabs(avg - prev_avg);
-            if (d < min_d) min_d = d;
-        }
-
-        prev_avg = avg;
+    if (len < 2) {
+        if (threadIdx.x == 0)
+            out[k] = 0.0;
+        return;
     }
 
-    out_min_delta[k] = min_d;
+    __shared__ double sh_min[BLOCK_SIZE];
+
+    double local_min = 1e300;
+
+    // |avg[i+1] - avg[i]|
+    for (int i = threadIdx.x; i < len - 1; i += blockDim.x) {
+        double d = fabs(avg[start + i + 1] - avg[start + i]);
+        local_min = fmin(local_min, d);
+    }
+
+    sh_min[threadIdx.x] = local_min;
+    __syncthreads();
+
+    // reduction min
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) {
+            sh_min[threadIdx.x] =
+                fmin(sh_min[threadIdx.x], sh_min[threadIdx.x + stride]);
+        }
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0)
+        out[k] = sh_min[0];
 }
 
-// ================== HOST interface ==================
+// ================= HOST INTERFACE =================
 
 extern "C"
 std::vector<GpuMinDelta>
 computeStatsCUDA(
-    const std::vector<int>    &keys,
-    const std::vector<int>    &years,
-    const std::vector<double> &temps,
+    const std::vector<double> &avg,
+    const std::vector<int>    &key_offsets,
+    const std::vector<int>    &key_sizes,
     int num_keys
 )
 {
-    int n = keys.size();
+    int n = avg.size();
 
-    // ---------- вычисляем offsets на CPU ----------
-    std::vector<int> key_offsets(num_keys);
-    std::vector<int> key_sizes(num_keys);
+    // ===== CUDA BUFFER CACHE =====
+    static double *d_avg     = nullptr;
+    static double *d_out     = nullptr;
+    static int    *d_offsets = nullptr;
+    static int    *d_sizes   = nullptr;
 
-    int cur_key = -1;
-    for (int i = 0; i < n; ++i) {
-        if (i == 0 || keys[i] != keys[i - 1]) {
-            cur_key++;
-            key_offsets[cur_key] = i;
-            key_sizes[cur_key] = 1;
-        } else {
-            key_sizes[cur_key]++;
-        }
+    static int cap_avg  = 0;
+    static int cap_keys = 0;
+
+    // avg buffer
+    if (n > cap_avg) {
+        if (d_avg) cudaFree(d_avg);
+        cudaMalloc(&d_avg, n * sizeof(double));
+        cap_avg = n;
     }
 
-    // ---------- device memory ----------
-    int    *d_keys, *d_years, *d_key_offsets, *d_key_sizes;
-    double *d_temps, *d_out;
+    // offsets / sizes / output
+    if (num_keys > cap_keys) {
+        if (d_offsets) cudaFree(d_offsets);
+        if (d_sizes)   cudaFree(d_sizes);
+        if (d_out)     cudaFree(d_out);
 
-    cudaMalloc(&d_keys,        n * sizeof(int));
-    cudaMalloc(&d_years,       n * sizeof(int));
-    cudaMalloc(&d_temps,       n * sizeof(double));
-    cudaMalloc(&d_key_offsets,num_keys * sizeof(int));
-    cudaMalloc(&d_key_sizes,  num_keys * sizeof(int));
-    cudaMalloc(&d_out,        num_keys * sizeof(double));
+        cudaMalloc(&d_offsets, num_keys * sizeof(int));
+        cudaMalloc(&d_sizes,   num_keys * sizeof(int));
+        cudaMalloc(&d_out,     num_keys * sizeof(double));
 
-    cudaMemcpy(d_keys, keys.data(), n * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_years, years.data(), n * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_temps, temps.data(), n * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_key_offsets, key_offsets.data(),
-               num_keys * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_key_sizes, key_sizes.data(),
-               num_keys * sizeof(int), cudaMemcpyHostToDevice);
+        cap_keys = num_keys;
+    }
 
-    // ---------- kernel ----------
-    compute_min_delta_kernel<<<num_keys, 1>>>(
-        d_keys,
-        d_years,
-        d_temps,
-        d_key_offsets,
-        d_key_sizes,
+    // ===== H2D =====
+    cudaMemcpy(d_avg,
+               avg.data(),
+               n * sizeof(double),
+               cudaMemcpyHostToDevice);
+
+    cudaMemcpy(d_offsets,
+               key_offsets.data(),
+               num_keys * sizeof(int),
+               cudaMemcpyHostToDevice);
+
+    cudaMemcpy(d_sizes,
+               key_sizes.data(),
+               num_keys * sizeof(int),
+               cudaMemcpyHostToDevice);
+
+    // ===== KERNEL =====
+    min_delta_from_avg_kernel<<<num_keys, BLOCK_SIZE>>>(
+        d_avg,
+        d_offsets,
+        d_sizes,
         num_keys,
         d_out
     );
 
-    cudaDeviceSynchronize();
-
-    // ---------- copy back ----------
+    // cudaMemcpy D2H уже синхронизирует устройство
     std::vector<double> h_out(num_keys);
-    cudaMemcpy(h_out.data(), d_out,
+    cudaMemcpy(h_out.data(),
+               d_out,
                num_keys * sizeof(double),
                cudaMemcpyDeviceToHost);
 
-    // ---------- cleanup ----------
-    cudaFree(d_keys);
-    cudaFree(d_years);
-    cudaFree(d_temps);
-    cudaFree(d_key_offsets);
-    cudaFree(d_key_sizes);
-    cudaFree(d_out);
-
-    // ---------- pack result ----------
-    std::vector<GpuMinDelta> result;
-    result.reserve(num_keys);
+    // ===== RESULT =====
+    std::vector<GpuMinDelta> res;
+    res.reserve(num_keys);
 
     for (int i = 0; i < num_keys; ++i) {
-        result.push_back({ i, h_out[i] });
+        res.push_back({ i, h_out[i] });
     }
 
-    return result;
+    return res;
 }
